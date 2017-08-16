@@ -1,0 +1,36 @@
+{
+  "resourceName": "smart-lock",
+  "version": "1.0.0",
+  "description": "Smart distributed lock using redis",
+  "keywords": [
+    "lock",
+    "mutex",
+    "exclusion",
+    "redis",
+    "ioredis",
+    "queue",
+    "distributed",
+    "sync",
+    "smart"
+  ],
+  "author": {
+    "resourceName": "Chaos",
+    "email": "chaos@voidis.com"
+  },
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "homepage": "https://github.com/maintao/smart-lock",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/maintao/smart-lock.git"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "bluebird": "^3.5.0",
+    "chai": "^4.1.1",
+    "ioredis": "^3.1.2",
+    "mocha": "^3.5.0"
+  }
+}
