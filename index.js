@@ -32,27 +32,32 @@ function enQueue(lock) {
 
   if (waitingQueue.length === 0) {
     waitingQueue.push(lock)
-    return
   }
-
-  let i = waitingQueue.length - 1
-  for (; i >= 0; i--) {
-    if (lock.id > waitingQueue[i].id) { // 找到适当的位置
-      break
+  else{
+    for (let i = waitingQueue.length - 1; i > 0; i--) {
+      if (lock.id > waitingQueue[i].id) { // 找到所在的位置
+        return waitingQueue.splice(i + 1, 0, lock) // 插在第一个比它小的元素后
+      }
+    }
+    if (lock.id > waitingQueue[0].id) { // 与头元素比较
+      waitingQueue.splice(1, 0, lock) // 比头元素大则插在后面
+    }
+    else{
+      waitingQueue.splice(0, 0, lock) // 比头元素小则插在前面
     }
   }
-  waitingQueue.splice(i, 0, lock) // 插入
 }
 
 async function acquire(lock) {
-  let rs = await redis.set(lock.redisKey, lock.value, 'NX', 'PX', lock.ttl)
+  let rs = await redis.set(lock.redisKey, lock.value, 'NX', 'PX', lock.maxTimeToLock)
   if (rs) { // got lock
     lockingMap[lock.redisKey] = lock
+    lock.gotLockAt = Date.now()
     lock.resolve(lock)
     clearTimeout(lock.waitTimer)
     lock.releaseTimer = setTimeout(() => {
       emitter.emit('release', lock.redisKey)
-    }, lock.ttl)
+    }, lock.maxTimeToLock)
     debug('acquire success', lock.id)
     return true
   }
@@ -74,6 +79,7 @@ function removeFromWaitingQueue(lock) {
 function pickOneFromQueue(redisKey) {
   for (let lock of waitingQueue) {
     if (lock.redisKey === redisKey && lock.expireAt > Date.now()) {
+      debug(lock.id, waitingQueue[waitingQueue.length - 1].id)
       return lock
     }
   }
@@ -88,12 +94,12 @@ class AcquireLockError extends Error {
 }
 
 class Lock {
-  constructor(redisKey, timeToWait, ttl) {
+  constructor(redisKey, maxTimeToWait, maxTimeToLock) {
     this.id = ++seq
     this.value = this.id + Math.random()
     this.redisKey = redisKey
-    this.expireAt = Date.now() + timeToWait
-    this.ttl = ttl
+    this.expireAt = Date.now() + maxTimeToWait
+    this.maxTimeToLock = maxTimeToLock
   }
 
   async release() {
@@ -105,7 +111,7 @@ class Lock {
           }
           clearTimeout(this.releaseTimer)
           emitter.emit('release', this.redisKey)
-          resolve()
+          resolve(this)
         })
     })
   }
@@ -123,7 +129,7 @@ function canAcquireLock(redisKey) {
   return true
 }
 
-module.exports = function (redisClient, options) {
+module.exports = (redisClient, options) => {
   redis = redisClient
   if (options && options.debug) {
     debug = console.log
@@ -152,7 +158,7 @@ module.exports = function (redisClient, options) {
         }
       })
     },
-    clear: function () {
+    clear: () => {
       for(let lock of waitingQueue){
         clearTimeout(lock.waitTimer)
       }
@@ -162,6 +168,8 @@ module.exports = function (redisClient, options) {
         clearTimeout(lockingMap[key].releaseTimer)
         delete lockingMap[key]
       }
+
+      seq = 0
     }
   }
 }
